@@ -16,7 +16,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed import init_process_group, destroy_process_group
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
-from src.model import get_model
+from src.model import create_model
 from src.utils import accuracy
 
 
@@ -123,7 +123,7 @@ def get_lr_scheduler(optimizer, hyper_params):
                 )
             else:
                 raise RuntimeError(
-                    f"Invalid warmup lr method '{hyper_params["lr_warmup_method"]}'. Only linear and constant are supported."
+                    f"Invalid warmup lr method {hyper_params['lr_warmup_method']}. Only linear and constant are supported."
                 )
             lr_scheduler = SequentialLR(
                 optimizer, schedulers=[warmup_lr_scheduler, sched_1], milestones=[hyper_params["lr_warmup_epochs"]]
@@ -278,7 +278,7 @@ class Trainer:
                 self.scaler = self.scaler.load_state_dict(scaler)
 
         # model
-        self.model = get_model(self.args.model, 
+        self.model = create_model(self.args.model, 
                                num_classes=classes, 
                                weights=model_state_dict).to(self.device)
         
@@ -288,7 +288,7 @@ class Trainer:
         # decaying model weights
         parameters = set_weight_decay(
             self.model,
-            args.weight_decay,
+            args.decay,
             norm_weight_decay=args.norm_weight_decay,
             custom_keys_weight_decay=None,
         )

@@ -1,4 +1,5 @@
 import os
+import warnings
 import logging
 import logging.config
 import argparse
@@ -10,6 +11,7 @@ from src.torch_utils import Trainer, ddp_setup, wrapup_ddp, get_hyperparams, lis
 from src.utils import set_all_seeds, get_logging_schema, add_params_to_yaml
 
 
+warnings.filterwarnings("ignore")
 logger = logging.getLogger(__name__)
 
 
@@ -20,6 +22,10 @@ def get_args():
     # data handling
     parser.add_argument('--data-dir', type=str, default=os.path.join(os.getcwd(), "data"), required=True,
                         help='Path to where the data is stored.')
+    parser.add_argument("--mixup-alpha", default=0.0, type=float, 
+                        help="mixup alpha (default: 0.0)")
+    parser.add_argument("--cutmix-alpha", default=0.0, type=float, 
+                        help="cutmix alpha (default: 0.0)")
     parser.add_argument("--auto-augment", type=str, default=None, 
                         help="auto augment policy (default: None)")
     parser.add_argument("--ra-magnitude", type=int, default=9, 
@@ -107,11 +113,11 @@ def main():
     args = get_args()
     # set_all_seeds(int(args.seed))
     logging.config.dictConfig(get_logging_schema(level="DEBUG" if args.debug else "INFO", 
-                                                 file_name=os.path.join(os.getcwd(), 'runs', args.exp, f'logs', 'info.log')))
+                                                 file_name=os.path.join(os.getcwd(), 'data', 'runs', args.exp, f'logs', 'info.log')))
     logger.info(f"{args}")
 
     logger.debug(f"creating runs directory")
-    os.makedirs(os.path.join(os.getcwd(), 'runs', args.exp), exist_ok=True)
+    os.makedirs(os.path.join(os.getcwd(), 'data', 'runs', args.exp), exist_ok=True)
 
     ddp_setup()
 
@@ -122,7 +128,7 @@ def main():
     
     if args.train:
 
-        add_params_to_yaml(yml_path=os.path.join(os.getcwd(), 'runs', args.exp, 'logs', f"parameters-{datetime.today().strftime('%Y-%m-%d-%H-%M-%S')}.yaml"), 
+        add_params_to_yaml(yml_path=os.path.join(os.getcwd(), 'data', 'runs', args.exp, 'logs', f"parameters-{datetime.today().strftime('%Y-%m-%d-%H-%M-%S')}.yaml"), 
                        args=args)
 
         if args.resume:
@@ -146,8 +152,8 @@ def main():
                               scaler=ckpt["scaler"],
                               classes=classes,
                               num_epochs_early_stop=args.patience_epochs,
-                              log_dir=os.path.join(os.getcwd(), 'runs', args.exp, 't-board'),
-                              saved_models_dir=os.path.join(os.getcwd(), "runs", args.exp, "weights"),
+                              log_dir=os.path.join(os.getcwd(), 'data', 'runs', args.exp, 't-board'),
+                              saved_models_dir=os.path.join(os.getcwd(), 'data', "runs", args.exp, "weights"),
                               args=args
                               )
 
@@ -181,8 +187,8 @@ def main():
                                   scaler=scaler,
                                   classes=classes,
                                   num_epochs_early_stop=args.patience_epochs,
-                                  log_dir=os.path.join(os.getcwd(), 'runs', args.exp, 't-board'),
-                                  saved_models_dir=os.path.join(os.getcwd(), "runs", args.exp, "weights"),
+                                  log_dir=os.path.join(os.getcwd(), 'data', 'runs', args.exp, 't-board'),
+                                  saved_models_dir=os.path.join(os.getcwd(), 'data', "runs", args.exp, "weights"),
                                   args=args
                                   )
 
@@ -198,8 +204,8 @@ def main():
                                   hyper_params=hy_params,
                                   classes=classes,
                                   num_epochs_early_stop=args.patience_epochs,
-                                  log_dir=os.path.join(os.getcwd(), 'runs', args.exp, 't-board'),
-                                  saved_models_dir=os.path.join(os.getcwd(), "runs", args.exp, "weights"),
+                                  log_dir=os.path.join(os.getcwd(), 'data', 'runs', args.exp, 't-board'),
+                                  saved_models_dir=os.path.join(os.getcwd(), 'data', "runs", args.exp, "weights"),
                                   args=args
                                   )
         
@@ -213,9 +219,9 @@ def main():
         logger.info(f"Testing mode enabled")
 
         logger.debug(f"creating test directory")
-        os.makedirs(os.path.join(os.getcwd(), 'runs', args.exp, "test"), exist_ok=True)
+        os.makedirs(os.path.join(os.getcwd(), 'data', 'runs', args.exp, "test"), exist_ok=True)
 
-        logger.info(f'Loading model weights from the {os.path.join(os.getcwd(), "runs", args.exp, "weights")}')
+        logger.info(f'Loading model weights from the {os.path.join(os.getcwd(), "data", "runs", args.exp, "weights")}')
 
         if not os.path.exists(os.path.join(args.weights)):
             logger.error(f"Model weights not found!")
@@ -231,7 +237,7 @@ def main():
                           args=args
                           )
         logger.info(f"Initiate testing")
-        with open(os.path.join(os.getcwd(), "runs", args.exp, "test", "stats.txt"), "a") as fp:
+        with open(os.path.join(os.getcwd(), 'data', "runs", args.exp, "test", "stats.txt"), "a") as fp:
             acc_1, acc_5, loss = trainer.test()
             fp.write(f"Accuracy-1: {acc_1*100:.2f} | Accuracy-5: {acc_5*100:.2f} | Loss: {loss:.5f}\n")
 

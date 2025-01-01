@@ -5,10 +5,9 @@ import logging
 import torch
 import torch.distributed as dist
 
-from huggingface_hub import login
-from datasets import load_dataset_builder
 from torch import is_distributed
 from torchvision.transforms import v2
+from torchvision.datasets import ImageFolder
 from torchvision.transforms.functional import InterpolationMode
 from torch.utils.data import Dataset, DataLoader
 from torch.utils.data.sampler import RandomSampler, SequentialSampler, Sampler
@@ -208,16 +207,16 @@ class TestTransform:
         return self.transforms(img)
 
 
-def _get_hf_dataset(data_path):
-    login()
-    logger.info("Downloading & preparing dataset")
-    st = time.time()
-    builder = load_dataset_builder("ILSVRC/imagenet-1k")
-    # , cache_dir=os.path.join(R"/workspace/extra-data-storage/hf_data/cache"))
-    builder.download_and_prepare(os.path.join(data_path))
-    logger.info(f"Took {time.time() - st}")
+# def _get_hf_dataset(data_path):
+#     login()
+#     logger.info("Downloading & preparing dataset")
+#     st = time.time()
+#     builder = load_dataset_builder("ILSVRC/imagenet-1k")
+#     # , cache_dir=os.path.join(R"/workspace/extra-data-storage/hf_data/cache"))
+#     builder.download_and_prepare(os.path.join(data_path))
+#     logger.info(f"Took {time.time() - st}")
 
-    return builder.as_dataset(split="train"), builder.as_dataset(split="validation")
+#     return builder.as_dataset(split="train"), builder.as_dataset(split="validation")
 
 
 def get_data_loaders(args):
@@ -229,18 +228,18 @@ def get_data_loaders(args):
     )
     interpolation = InterpolationMode("bilinear")
 
-    tr_hf_dataset, ts_hf_dataset = _get_hf_dataset(args.data_dir)
-    num_classes = tr_hf_dataset.features['label'].num_classes
+    # tr_hf_dataset, ts_hf_dataset = _get_hf_dataset(args.data_dir)
+    # num_classes = tr_hf_dataset.features['label'].num_classes
 
     logger.info("load training data")
     auto_augment_policy = getattr(args, "auto_augment", None)
     random_erase_prob = getattr(args, "random_erase", 0.0)
     ra_magnitude = getattr(args, "ra_magnitude", None)
     augmix_severity = getattr(args, "augmix_severity", None)
+
     # Create the datasets
-    train_dataset = CustomImageNet1KDataset(
-        tr_hf_dataset, 
-        'train', 
+    train_dataset = ImageFolder(
+        os.path.join(args.data_dir, "train"),
         transform=TrainTransform(
             crop_size=train_crop_size,
             interpolation=interpolation,
@@ -250,16 +249,40 @@ def get_data_loaders(args):
             augmix_severity=augmix_severity,
         )
     )
-    
-    test_dataset = CustomImageNet1KDataset(
-        ts_hf_dataset, 
-        'test', 
+
+    test_dataset = ImageFolder(
+        os.path.join(args.data_dir, "val"), 
         transform=TestTransform(
             crop_size=val_crop_size,
             resize_size=val_resize_size,
             interpolation=interpolation,
         )
     )
+
+    num_classes = len(train_dataset.classes)
+
+    # train_dataset = CustomImageNet1KDataset(
+    #     tr_hf_dataset, 
+    #     'train', 
+    #     transform=TrainTransform(
+    #         crop_size=train_crop_size,
+    #         interpolation=interpolation,
+    #         auto_augment_policy=auto_augment_policy,
+    #         random_erase_prob=random_erase_prob,
+    #         ra_magnitude=ra_magnitude,
+    #         augmix_severity=augmix_severity,
+    #     )
+    # )
+    
+    # test_dataset = CustomImageNet1KDataset(
+    #     ts_hf_dataset, 
+    #     'test', 
+    #     transform=TestTransform(
+    #         crop_size=val_crop_size,
+    #         resize_size=val_resize_size,
+    #         interpolation=interpolation,
+    #     )
+    # )
 
     logging.info("Creating data samplers")
     if is_distributed:
